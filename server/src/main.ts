@@ -5,10 +5,10 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for the Next.js client (port 3000)
+  // Enable CORS securely with strict URL constraints
   app.enableCors({
     origin: ['https://cursor-pagination-two.vercel.app'],
-    methods: ['GET'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     credentials: true,
   });
 
