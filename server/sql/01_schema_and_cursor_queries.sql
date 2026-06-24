@@ -1,11 +1,4 @@
--- ============================================================================
--- 01_schema_and_cursor_queries.sql
--- Schema, indexes, and cursor-based pagination queries for Supabase PostgreSQL
--- ============================================================================
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 1. TABLE SCHEMA
--- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS products (
   id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -16,41 +9,15 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 2. INDEXES FOR CURSOR PAGINATION
--- ─────────────────────────────────────────────────────────────────────────────
 
--- Primary pagination index: unfiltered "newest first" browsing.
--- Covers: ORDER BY created_at DESC, id DESC
--- The composite (created_at DESC, id DESC) lets PostgreSQL do an index-only
--- backward scan for keyset pagination — no sequential scan, no sort step.
 CREATE INDEX IF NOT EXISTS idx_products_created_at_id
   ON products (created_at DESC, id DESC);
 
--- Category-filtered pagination index.
--- Covers: WHERE category = $1 ORDER BY created_at DESC, id DESC
--- The leading equality column (category) narrows the scan, then the trailing
--- (created_at DESC, id DESC) provides the sort order for the cursor seek.
+
 CREATE INDEX IF NOT EXISTS idx_products_category_created_at_id
   ON products (category, created_at DESC, id DESC);
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 3. CURSOR-BASED PAGINATION QUERIES
--- ─────────────────────────────────────────────────────────────────────────────
 
--- ┌─────────────────────────────────────────────────────────────────────────┐
--- │ HOW CURSOR PAGINATION WORKS                                            │
--- │                                                                        │
--- │ Instead of OFFSET/LIMIT (which scans & discards rows), we use the     │
--- │ last row's (created_at, id) as a cursor. The WHERE clause seeks       │
--- │ directly to that position in the index — O(1) regardless of depth.    │
--- │                                                                        │
--- │ WHY IT PREVENTS DUPLICATES:                                            │
--- │ If 50 new products are inserted while a user is on page 3, they all   │
--- │ have newer created_at values — they land BEFORE the cursor position.  │
--- │ The pages AFTER the cursor are completely unaffected. No duplicates,   │
--- │ no gaps.                                                               │
--- └─────────────────────────────────────────────────────────────────────────┘
 
 -- 3a. FIRST PAGE (no cursor) — newest products first
 -- Used when the user first loads the page.
