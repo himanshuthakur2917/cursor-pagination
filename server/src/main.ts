@@ -7,7 +7,7 @@ async function bootstrap() {
 
   // Enable CORS securely with strict URL constraints
   app.enableCors({
-    origin: ['https://cursor-pagination-two.vercel.app'],
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     credentials: true,
   });
