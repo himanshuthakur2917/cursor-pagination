@@ -1,6 +1,6 @@
 import { PaginatedResponse } from "@/types/product";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://cursor-pagination-8iw7.vercel.app";
 
 interface FetchProductsParams {
   limit?: number;
