@@ -1,65 +1,160 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { DataTable } from "@/components/products/data-table";
+import { DataTableToolbar } from "@/components/products/data-table-toolbar";
+import { columns } from "@/components/products/columns";
+import { fetchProducts, fetchCategories } from "@/lib/api";
+import { PaginatedResponse, PageInfo } from "@/types/product";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * Default page info for initial state.
+ */
+const defaultPageInfo: PageInfo = {
+  hasNextPage: false,
+  hasPreviousPage: false,
+  startCursor: null,
+  endCursor: null,
+};
+
+const PAGE_SIZE = 20;
+
+function ProductBrowser() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read state from URL
+  const cursor = searchParams.get("cursor") || undefined;
+  const direction =
+    (searchParams.get("direction") as "forward" | "backward") || undefined;
+  const category = searchParams.get("category") || undefined;
+
+  // Component state
+  const [response, setResponse] = useState<PaginatedResponse | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Track cursor history stack for proper backward navigation
+  const cursorStackRef = useRef<string[]>([]);
+
+  // Fetch categories once
+  useEffect(() => {
+    fetchCategories()
+      .then(setCategories)
+      .catch((err) => console.error("Failed to fetch categories:", err));
+  }, []);
+
+  // Fetch products when URL params change
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+
+    fetchProducts({
+      limit: PAGE_SIZE,
+      cursor,
+      category,
+      direction,
+    })
+      .then((data) => {
+        setResponse(data);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setIsLoading(false);
+      });
+  }, [cursor, category, direction]);
+
+  /**
+   * Navigate to the next page using the endCursor from the current response.
+   */
+  const handleNextPage = useCallback(() => {
+    if (!response?.pageInfo.endCursor) return;
+
+    // Push current startCursor to the stack for backward navigation
+    if (response.pageInfo.startCursor) {
+      cursorStackRef.current.push(response.pageInfo.startCursor);
+    }
+
+    const params = new URLSearchParams();
+    params.set("cursor", response.pageInfo.endCursor);
+    params.set("direction", "forward");
+    if (category) params.set("category", category);
+    router.push(`/?${params.toString()}`);
+  }, [response, category, router]);
+
+  /**
+   * Navigate to the previous page using the startCursor from the current response.
+   */
+  const handlePreviousPage = useCallback(() => {
+    if (!response?.pageInfo.startCursor) return;
+
+    const params = new URLSearchParams();
+    params.set("cursor", response.pageInfo.startCursor);
+    params.set("direction", "backward");
+    if (category) params.set("category", category);
+    router.push(`/?${params.toString()}`);
+  }, [response, category, router]);
+
+  /**
+   * Change category filter and reset pagination to page 1.
+   */
+  const handleCategoryChange = useCallback(
+    (newCategory: string | null) => {
+      cursorStackRef.current = [];
+      const params = new URLSearchParams();
+      if (newCategory) params.set("category", newCategory);
+      router.push(params.toString() ? `/?${params.toString()}` : "/");
+    },
+    [router]
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-[#000000] p-8">
+      <main className="mx-auto max-w-6xl">
+        <DataTableToolbar
+          categories={categories}
+          selectedCategory={category ?? null}
+          onCategoryChange={handleCategoryChange}
+          isLoading={isLoading}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        <DataTable
+          columns={columns}
+          data={response?.data ?? []}
+          pageInfo={response?.pageInfo ?? defaultPageInfo}
+          totalCount={response?.totalCount ?? 0}
+          pageSize={PAGE_SIZE}
+          isLoading={isLoading}
+          onNextPage={handleNextPage}
+          onPreviousPage={handlePreviousPage}
+        />
       </main>
     </div>
+  );
+}
+
+/**
+ * Wrap in Suspense for useSearchParams() which requires it in Next.js App Router.
+ */
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="space-y-4 w-full max-w-7xl px-4">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-10 w-48 rounded-lg" />
+            <Skeleton className="h-96 w-full rounded-xl" />
+          </div>
+        </div>
+      }
+    >
+      <ProductBrowser />
+    </Suspense>
   );
 }
