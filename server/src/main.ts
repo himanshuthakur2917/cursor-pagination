@@ -7,7 +7,7 @@ async function bootstrap() {
 
   // Enable CORS for the Next.js client (port 3000)
   app.enableCors({
-    origin: ['https://cursor-pagination-two.vercel.app/'],
+    origin: ['https://cursor-pagination-two.vercel.app'],
     methods: ['GET'],
     credentials: true,
   });
